@@ -448,6 +448,47 @@ app.delete('/api/admin/users/:id', authMiddleware('admin'), async (req: Request,
   }
 });
 
+// ── Routes: APK Releases ──────────────────────────────────────────────────
+const STORAGE_ACCOUNT = 'decentraidstore';
+const APK_CONTAINER = 'apk-releases';
+const BLOB_BASE_URL = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${APK_CONTAINER}`;
+
+app.get('/api/admin/apk-releases', authMiddleware('admin'), async (_req: Request, res: Response): Promise<void> => {
+  try {
+    // Fetch latest.json pointer
+    const latestRes = await fetch(`${BLOB_BASE_URL}/latest.json?${Date.now()}`);
+    const latest = latestRes.ok ? await latestRes.json() : null;
+
+    // List all APK blobs via Azure Blob Storage List API
+    const listUrl = `${BLOB_BASE_URL}?restype=container&comp=list&prefix=decentraid-`;
+    const listRes = await fetch(listUrl);
+    const xml = await listRes.text();
+
+    // Parse blob names + metadata from XML
+    const blobs: Array<{ name: string; url: string; size: number; lastModified: string; metadata: Record<string, string> }> = [];
+    const blobMatches = xml.matchAll(/<Blob>([\s\S]*?)<\/Blob>/g);
+    for (const match of blobMatches) {
+      const block = match[1];
+      const name = block.match(/<Name>([^<]+)<\/Name>/)?.[1] ?? '';
+      const size = parseInt(block.match(/<Content-Length>([^<]+)<\/Content-Length>/)?.[1] ?? '0', 10);
+      const lastModified = block.match(/<Last-Modified>([^<]+)<\/Last-Modified>/)?.[1] ?? '';
+      const metaBlock = block.match(/<Metadata>([\s\S]*?)<\/Metadata>/)?.[1] ?? '';
+      const metadata: Record<string, string> = {};
+      const metaMatches = metaBlock.matchAll(/<([^>]+)>([^<]*)<\/[^>]+>/g);
+      for (const m of metaMatches) metadata[m[1]] = m[2];
+      blobs.push({ name, url: `${BLOB_BASE_URL}/${name}`, size, lastModified, metadata });
+    }
+
+    // Sort newest first
+    blobs.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+
+    res.json({ latest, releases: blobs });
+  } catch (err) {
+    console.error('APK releases error:', err);
+    res.status(500).json({ error: 'Failed to fetch APK releases' });
+  }
+});
+
 // ── Start ──────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT ?? 3002;
 

@@ -14,7 +14,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type Tab = 'reports' | 'stats' | 'settings' | 'users';
+type Tab = 'reports' | 'stats' | 'settings' | 'users' | 'downloads';
 
 // ── Reports Tab ──────────────────────────────────────────────────────────
 function ReportsTab({ token }: { token: string }) {
@@ -450,6 +450,143 @@ function UsersTab({ token }: { token: string }) {
   );
 }
 
+// ── Downloads Tab ─────────────────────────────────────────────────────────
+function DownloadsTab({ token }: { token: string }) {
+  const [latest, setLatest] = useState<any>(null);
+  const [releases, setReleases] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch('/api/admin/apk-releases', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('Failed to fetch releases');
+        const data = await res.json();
+        setLatest(data.latest);
+        setReleases(data.releases ?? []);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [token]);
+
+  function formatBytes(bytes: number) {
+    if (!bytes) return '—';
+    const mb = bytes / 1024 / 1024;
+    return `${mb.toFixed(1)} MB`;
+  }
+
+  function formatDate(str: string) {
+    if (!str) return '—';
+    return new Date(str).toLocaleString();
+  }
+
+  return (
+    <div>
+      <h2 className="text-xl font-semibold text-white mb-6">Android APK Downloads</h2>
+
+      {error && <div className="bg-red-900/40 border border-red-500 text-red-300 rounded-lg px-4 py-3 text-sm mb-6">{error}</div>}
+
+      {/* Latest release card */}
+      {latest && (
+        <div className="bg-gradient-to-br from-cyan-900/40 to-slate-800 border border-cyan-500/30 rounded-2xl p-6 mb-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-2.5 py-1 rounded-full font-medium uppercase tracking-wide">
+                Latest Release
+              </span>
+              <h3 className="text-2xl font-bold text-white mt-3">
+                DecentraID v{latest.version}
+                <span className="text-base font-normal text-slate-400 ml-2">build #{latest.buildNumber}</span>
+              </h3>
+              <p className="text-slate-400 text-sm mt-1">
+                {formatDate(latest.timestamp)}
+                {latest.commitSha && (
+                  <span className="ml-2 font-mono text-xs text-slate-500">
+                    {latest.commitSha.slice(0, 7)}
+                  </span>
+                )}
+              </p>
+            </div>
+            <a
+              href={latest.downloadUrl}
+              download
+              className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-colors whitespace-nowrap shadow-lg shadow-cyan-900/30"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download APK
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* All releases table */}
+      <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">All Releases</h3>
+      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        {loading ? (
+          <div className="text-center text-slate-400 py-12">Loading releases…</div>
+        ) : releases.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-3">📱</div>
+            <p className="text-slate-400 text-sm">No APK releases yet.</p>
+            <p className="text-slate-500 text-xs mt-1">Push to main branch to trigger a build.</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700">
+                <th className="text-left text-slate-400 font-medium px-5 py-3">Version</th>
+                <th className="text-left text-slate-400 font-medium px-5 py-3">Build</th>
+                <th className="text-left text-slate-400 font-medium px-5 py-3">Date</th>
+                <th className="text-left text-slate-400 font-medium px-5 py-3">Size</th>
+                <th className="text-left text-slate-400 font-medium px-5 py-3">Commit</th>
+                <th className="text-left text-slate-400 font-medium px-5 py-3">Download</th>
+              </tr>
+            </thead>
+            <tbody>
+              {releases.map((r, i) => (
+                <tr key={r.name} className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors ${i === 0 ? 'bg-cyan-900/10' : ''}`}>
+                  <td className="px-5 py-3">
+                    <span className="text-white font-medium">v{r.metadata?.version ?? '—'}</span>
+                    {i === 0 && <span className="ml-2 text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">latest</span>}
+                  </td>
+                  <td className="px-5 py-3 text-slate-300">#{r.metadata?.buildNumber ?? '—'}</td>
+                  <td className="px-5 py-3 text-slate-400">{formatDate(r.lastModified)}</td>
+                  <td className="px-5 py-3 text-slate-400">{formatBytes(r.size)}</td>
+                  <td className="px-5 py-3 font-mono text-slate-500 text-xs">
+                    {r.metadata?.commitSha ? r.metadata.commitSha.slice(0, 7) : '—'}
+                  </td>
+                  <td className="px-5 py-3">
+                    <a
+                      href={r.url}
+                      download
+                      className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-medium text-xs transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      .apk
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────────────────────────────────
 export default function AdminDashboard({ token, onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<Tab>('reports');
@@ -459,6 +596,7 @@ export default function AdminDashboard({ token, onLogout }: AdminDashboardProps)
     { id: 'stats', label: 'Stats', icon: '📊' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
     { id: 'users', label: 'Users', icon: '👥' },
+    { id: 'downloads', label: 'Downloads', icon: '📱' },
   ];
 
   return (
@@ -515,6 +653,7 @@ export default function AdminDashboard({ token, onLogout }: AdminDashboardProps)
         {activeTab === 'stats' && <StatsTab token={token} />}
         {activeTab === 'settings' && <SettingsTab token={token} />}
         {activeTab === 'users' && <UsersTab token={token} />}
+        {activeTab === 'downloads' && <DownloadsTab token={token} />}
       </main>
     </div>
   );

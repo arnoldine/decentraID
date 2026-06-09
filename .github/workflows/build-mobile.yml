@@ -46,9 +46,66 @@ jobs:
           ./gradlew assembleRelease --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
 
-      - name: Upload APK artifact
+      - name: Get version info
+        id: version
+        run: |
+          VERSION=$(node -p "require('./mobile/package.json').version")
+          BUILD_NUMBER=${{ github.run_number }}
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          APK_NAME="decentraid-v${VERSION}-build${BUILD_NUMBER}-${SHORT_SHA}.apk"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "build_number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "apk_name=${APK_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Upload APK to Azure Blob Storage
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+        run: |
+          az storage blob upload \
+            --container-name apk-releases \
+            --name "${{ steps.version.outputs.apk_name }}" \
+            --file mobile/android/app/build/outputs/apk/release/app-release.apk \
+            --connection-string "$AZURE_STORAGE_CONNECTION_STRING" \
+            --metadata version="${{ steps.version.outputs.version }}" \
+              buildNumber="${{ steps.version.outputs.build_number }}" \
+              timestamp="${{ steps.version.outputs.timestamp }}" \
+              commitSha="${{ github.sha }}" \
+              commitMessage="${{ github.event.head_commit.message }}"
+
+      - name: Update latest.json pointer
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+        run: |
+          echo '{
+            "version": "${{ steps.version.outputs.version }}",
+            "buildNumber": ${{ steps.version.outputs.build_number }},
+            "timestamp": "${{ steps.version.outputs.timestamp }}",
+            "commitSha": "${{ github.sha }}",
+            "apkName": "${{ steps.version.outputs.apk_name }}",
+            "downloadUrl": "https://decentraidstore.blob.core.windows.net/apk-releases/${{ steps.version.outputs.apk_name }}"
+          }' > latest.json
+          az storage blob upload \
+            --container-name apk-releases \
+            --name latest.json \
+            --file latest.json \
+            --overwrite \
+            --connection-string "$AZURE_STORAGE_CONNECTION_STRING"
+
+      - name: Upload APK as GitHub artifact
         uses: actions/upload-artifact@v4
         with:
-          name: decentraid-release-${{ github.run_number }}
+          name: decentraid-${{ steps.version.outputs.apk_name }}
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## ✅ APK Build Successful" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | #${{ steps.version.outputs.build_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Download | [decentraid.apk](https://decentraidstore.blob.core.windows.net/apk-releases/${{ steps.version.outputs.apk_name }}) |" >> $GITHUB_STEP_SUMMARY
