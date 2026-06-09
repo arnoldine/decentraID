@@ -1,0 +1,32 @@
+{
+  "name": "skyface-v2-mobile",
+  "version": "1.1.0",
+  "main": "App.tsx",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.1.0",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/native-stack": "^6.11.0",
+    "expo": "~52.0.0",
+    "expo-camera": "~16.0.0",
+    "expo-dev-client": "*",
+    "expo-image-manipulator": "~13.0.0",
+    "expo-status-bar": "~2.0.0",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "react-native-nfc-manager": "^3.14.14",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.4.0",
+    "react-native-svg": "15.8.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~18.3.1",
+    "@types/react-native": "~0.76.0",
+    "typescript": "^5.3.3"
+  }
+}
