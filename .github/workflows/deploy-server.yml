@@ -1,0 +1,43 @@
+name: Deploy Backend to Azure App Service
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-server.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Create startup script
+        working-directory: server
+        run: |
+          echo '{"scripts":{"start":"npx tsx index.ts"}}' > /tmp/start.json
+
+      - name: Zip artifact for deployment
+        working-directory: server
+        run: zip -r ../server-deploy.zip . --exclude "*.db" --exclude "data/*"
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: decentraid-server
+          publish-profile: ${{ secrets.AZURE_SERVER_PUBLISH_PROFILE }}
+          package: server-deploy.zip
