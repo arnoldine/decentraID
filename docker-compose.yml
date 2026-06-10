@@ -1,0 +1,30 @@
+services:
+  server:
+    build: ./server
+    container_name: decentraid-server
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - server-data:/app/data
+    networks:
+      - decentraid
+
+  web:
+    build: ./web
+    container_name: decentraid-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - decentraid
+
+volumes:
+  server-data:
+
+networks:
+  decentraid:
+    driver: bridge
