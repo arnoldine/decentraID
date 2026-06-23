@@ -462,7 +462,8 @@ function DownloadsTab({ token }: { token: string }) {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch('/api/admin/apk-releases', {
+        const API = import.meta.env.VITE_API_URL ?? 'https://decentraid-server.azurewebsites.net/api';
+        const res = await fetch(`${API}/admin/apk-releases`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error('Failed to fetch releases');
